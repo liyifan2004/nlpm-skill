@@ -53,7 +53,7 @@ def required(name: str) -> set[str]:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--out", default=str(ROOT / "dist" / "nlpm-universal.zip"))
+    ap.add_argument("--out", default=str(ROOT / "dist" / "nlpm-skill.zip"))
     ap.add_argument("--check", action="store_true", help="verify an existing archive")
     args = ap.parse_args()
     name = skill_name()

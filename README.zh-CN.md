@@ -1,4 +1,4 @@
-# nlpm-universal 中文说明
+# nlpm-skill 中文说明
 
 把 [xiaolai/nlpm](https://github.com/xiaolai/nlpm) 的规则层抽成一个通用
 Agent Skill。项目要回答的问题只有一个：一个给 Claude Code 做的插件，能不能
@@ -29,8 +29,8 @@ python tools/build.py --upstream .cache/upstream
 python tools/pack.py
 ```
 
-把 `dist/nlpm-universal.zip` 通过宿主的技能导入功能安装，或把 `skill/`
-复制成宿主 skills 目录下的 `nlpm-universal/`。之后在对话里说「给某个目录
+把 `dist/nlpm-skill.zip` 通过宿主的技能导入功能安装，或把 `skill/`
+复制成宿主 skills 目录下的 `nlpm-skill/`。之后在对话里说「给某个目录
 的 skill 打分」即可。需要 Python 3.11+，无第三方依赖。
 
 ## 口径校准

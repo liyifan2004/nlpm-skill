@@ -1,7 +1,7 @@
-NOTICE — nlpm-universal
+NOTICE — nlpm-skill
 
 1. Project identity
-nlpm-universal is an independent, unofficial port of the natural-language
+nlpm-skill is an independent, unofficial port of the natural-language
 artifact scoring rules published in xiaolai/nlpm. It is not affiliated with,
 endorsed by, or maintained by Xiaolai Li or the nlpm project. The name "nlpm"
 is used to describe where the rubric comes from. No upstream logo, domain or

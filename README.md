@@ -1,4 +1,4 @@
-# nlpm-universal
+# nlpm-skill
 
 An independent [Agent Skill](https://agentskills.io) port of [xiaolai/nlpm](https://github.com/xiaolai/nlpm).
 
@@ -46,8 +46,8 @@ python tools/build.py --upstream .cache/upstream
 python tools/pack.py
 ```
 
-Import `dist/nlpm-universal.zip` through your host's skill importer, or copy
-`skill/` into the host's skills directory as `nlpm-universal/`. Python 3.11+
+Import `dist/nlpm-skill.zip` through your host's skill importer, or copy
+`skill/` into the host's skills directory as `nlpm-skill/`. Python 3.11+
 and the standard library are the only requirements.
 
 ## Use

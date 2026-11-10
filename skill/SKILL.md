@@ -1,5 +1,5 @@
 ---
-name: nlpm-universal
+name: nlpm-skill
 description: 审计自然语言工件的质量（SKILL.md、AGENTS.md、commands、agents、hooks、配置），按 100 分制扣分，检查清单与磁盘一致性，修复可自动修的字段，记录均分趋势。用户说「给这些 skill 打分」「检查插件清单」「lint 一下提示词」「规则有没有跑偏」时使用。跨宿主可用，不依赖 Claude Code。
 version: 0.1.0
 ---
