@@ -30,7 +30,9 @@ def skill_name() -> str:
 def entries(name: str) -> list[tuple[Path, str]]:
     out: list[tuple[Path, str]] = []
     skill_root = ROOT / "skill"
-    for p in sorted(skill_root.rglob("*")):
+    for p in sorted(
+        skill_root.rglob("*"), key=lambda p: p.relative_to(skill_root).as_posix()
+    ):
         if not p.is_file() or "__pycache__" in p.parts or p.suffix == ".pyc":
             continue
         out.append((p, f"{name}/{p.relative_to(skill_root).as_posix()}"))

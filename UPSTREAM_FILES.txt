@@ -3,23 +3,23 @@
 # commit: 6decf0217a1e5f7c6620bd3b02a694ae9a075fbb
 # format: <path here> <- <path upstream>
 
-skill/references/conventions/SKILL.md <- skills/nlpm/conventions/SKILL.md
 skill/references/conventions-antigravity/SKILL.md <- skills/nlpm/conventions-antigravity/SKILL.md
-skill/references/conventions-claude/reference.md <- skills/nlpm/conventions-claude/reference.md
 skill/references/conventions-claude/SKILL.md <- skills/nlpm/conventions-claude/SKILL.md
+skill/references/conventions-claude/reference.md <- skills/nlpm/conventions-claude/reference.md
 skill/references/conventions-codex/SKILL.md <- skills/nlpm/conventions-codex/SKILL.md
+skill/references/conventions/SKILL.md <- skills/nlpm/conventions/SKILL.md
 skill/references/orchestration/SKILL.md <- skills/nlpm/orchestration/SKILL.md
 skill/references/patterns/SKILL.md <- skills/nlpm/patterns/SKILL.md
 skill/references/rules/SKILL.md <- skills/nlpm/rules/SKILL.md
+skill/references/scoring/SKILL.md <- skills/nlpm/scoring/SKILL.md
 skill/references/scoring/references/antigravity.md <- skills/nlpm/scoring/references/antigravity.md
 skill/references/scoring/references/calibration-examples.md <- skills/nlpm/scoring/references/calibration-examples.md
 skill/references/scoring/references/codex.md <- skills/nlpm/scoring/references/codex.md
 skill/references/scoring/references/memory-and-workflow.md <- skills/nlpm/scoring/references/memory-and-workflow.md
-skill/references/scoring/SKILL.md <- skills/nlpm/scoring/SKILL.md
 skill/references/security/SKILL.md <- skills/nlpm/security/SKILL.md
 skill/references/testing/SKILL.md <- skills/nlpm/testing/SKILL.md
-skill/references/vocabulary/registry.yaml <- skills/nlpm/vocabulary/registry.yaml
 skill/references/vocabulary/SKILL.md <- skills/nlpm/vocabulary/SKILL.md
+skill/references/vocabulary/registry.yaml <- skills/nlpm/vocabulary/registry.yaml
 skill/references/writing-agents/SKILL.md <- skills/nlpm/writing-agents/SKILL.md
 skill/references/writing-hooks/SKILL.md <- skills/nlpm/writing-hooks/SKILL.md
 skill/references/writing-plugins/SKILL.md <- skills/nlpm/writing-plugins/SKILL.md
