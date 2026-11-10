@@ -143,14 +143,30 @@ def main() -> int:
         )
 
     if args.check:
+        import difflib
+
+        details: dict[str, list[str]] = {}
         with tempfile.TemporaryDirectory() as td:
             dest = Path(td)
             written = build_into(up, dest)
-            drift = [rel for rel in written if not same(ROOT / rel, dest / rel)]
-        if drift:
+            for rel in written:
+                a, b = ROOT / rel, dest / rel
+                if same(a, b):
+                    continue
+                diff: list[str] = []
+                if a.is_file() and b.is_file():
+                    diff = list(difflib.unified_diff(
+                        a.read_text(encoding="utf-8", errors="replace").splitlines(),
+                        b.read_text(encoding="utf-8", errors="replace").splitlines(),
+                        "committed", "generated", lineterm="",
+                    ))[:24]
+                details[rel] = diff
+        if details:
             print("generated files differ; run python tools/build.py:")
-            for rel in drift:
+            for rel, diff in details.items():
                 print(f"  {rel}")
+                for line in diff:
+                    print(f"    {line}")
             return 1
         print(f"{len(written)} generated files match upstream {expected[:8]}")
         return 0

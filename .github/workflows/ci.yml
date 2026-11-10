@@ -15,17 +15,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/checkout@v4
-        with:
-          repository: xiaolai/nlpm
-          path: .cache/upstream
-          fetch-depth: 1
-
-      - name: Pin upstream
+      - name: Check out upstream at pin
         shell: bash
         run: |
           pin="$(cat UPSTREAM_PIN)"
-          git -C .cache/upstream fetch --depth=1 origin "$pin"
+          git clone --depth 1 https://github.com/xiaolai/nlpm .cache/upstream
+          git -C .cache/upstream fetch --depth 1 origin "$pin"
           git -C .cache/upstream checkout --detach "$pin"
 
       - uses: actions/setup-python@v5
