@@ -125,4 +125,8 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    # Windows consoles default to cp1252; keep the CLI output UTF-8.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
     raise SystemExit(main())
