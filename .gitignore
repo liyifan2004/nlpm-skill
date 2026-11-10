@@ -1,3 +1,8 @@
+# AI assistant working directories — never commit
+.workbuddy/
+.claude/
+.agents/
+
 __pycache__/
 *.py[cod]
 .cache/

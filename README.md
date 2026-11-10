@@ -1,26 +1,48 @@
 # nlpm-skill
 
-An independent [Agent Skill](https://agentskills.io) port of [xiaolai/nlpm](https://github.com/xiaolai/nlpm).
+[![License: ISC](https://img.shields.io/badge/License-ISC-blue.svg?style=flat-square)](LICENSE)
+[![CI](https://github.com/liyifan2004/nlpm-skill/actions/workflows/ci.yml/badge.svg?style=flat-square)](https://github.com/liyifan2004/nlpm-skill/actions/workflows/ci.yml)
+[![Upstream: xiaolai/nlpm](https://img.shields.io/badge/Upstream-xiaolai%2Fnlpm-lightgrey.svg?style=flat-square)](https://github.com/xiaolai/nlpm)
 
-The question this project answers: can a Claude Code plugin that scores
-natural-language artifacts be turned into one portable skill without losing
-what it does? This repository holds the skill, the tools that keep it aligned
-with upstream, and the tests that check the claim. [中文说明](README.zh-CN.md).
+Lint the markdown files that steer your agent — `SKILL.md`, `AGENTS.md`,
+commands, hooks, manifests — on a 100-point rubric, from any host that reads
+[Agent Skills](https://agentskills.io). No plugin, marketplace or hook setup
+needed. [中文说明](README.zh-CN.md).
 
-**Unofficial port.** Not affiliated with or endorsed by Xiaolai Li or the
-nlpm project. See [NOTICE](NOTICE) and [ATTRIBUTION.md](ATTRIBUTION.md).
+Unofficial port. Not affiliated with or endorsed by Xiaolai Li or the nlpm
+project.
 
-## What upstream does
+## Install
 
-nlpm treats markdown files that steer agents as programs to lint: SKILL.md,
-AGENTS.md, commands, agents, hooks, manifests. It ships as a Claude Code
-plugin with 12 slash commands, 8 subagents, 17 knowledge skills, a PostToolUse
-hook, and a standalone Python validator.
+```bash
+git clone https://github.com/xiaolai/nlpm .cache/upstream
+python tools/build.py --upstream .cache/upstream
+python tools/pack.py
+```
 
-## What is here
+Import `dist/nlpm-skill.zip` through your host's skill importer, or copy
+`skill/` into the host's skills directory as `nlpm-skill/`. Requires Python
+3.11+ and nothing outside the standard library.
 
-The 17 knowledge skills, the 100-point rubric and the validator are copied
-from upstream. The harness-specific parts are replaced.
+To check the install without changing any files:
+
+```bash
+python skill/scripts/discover.py <skills-dir>
+```
+
+It prints the artifacts it found, grouped by host.
+
+## Use
+
+Say "score the skills in `<path>`" or "check manifest consistency" in a host
+that loaded the skill. `skill/SKILL.md` routes the request through five steps:
+set the scoring profile, discover artifacts, run mechanical checks, apply the
+rubric, then write a report and a snapshot.
+
+## What is preserved
+
+The 17 knowledge skills, the 100-point rubric and the standalone validator
+come from upstream unchanged. The harness-specific parts are replaced.
 
 | Upstream | Here | Difference |
 |---|---|---|
@@ -32,52 +54,29 @@ from upstream. The harness-specific parts are replaced.
 | trend state, config, reports | `history.py`, `templates/` | none |
 | manifest, namespace, marketplace updates | optional thin host shell | no automatic updates |
 
-The scoring output is preserved. The part that cannot be preserved lives in
-the host runtime: slash-command entry points, in-session hooks, marketplace
-versioning. [docs/design.md](docs/design.md) has the full mapping and explains
-why one universal skill plus one thin host shell satisfies both portability
-and the full experience.
+[docs/design.md](docs/design.md) has the full mapping, the three-layer loss
+boundary, and the reason one universal skill plus one thin host shell is the
+structure that keeps both portability and the full host experience.
+[docs/compatibility.md](docs/compatibility.md) lists what each host supports.
 
-## Install
+## Known limits
 
-```bash
-git clone https://github.com/xiaolai/nlpm .cache/upstream
-python tools/build.py --upstream .cache/upstream
-python tools/pack.py
-```
+- The optional host shell is not built yet.
+- `discover.py` classifies by path pattern, not by reading host specs.
+- R01's mention-versus-use exclusion still needs a per-line review;
+  `scripts/recalibrate.py` flags high-hit files instead of changing scores.
 
-Import `dist/nlpm-skill.zip` through your host's skill importer, or copy
-`skill/` into the host's skills directory as `nlpm-skill/`. Python 3.11+
-and the standard library are the only requirements.
+## Credits
 
-## Use
+An independent port of [xiaolai/nlpm](https://github.com/xiaolai/nlpm)
+v1.4.3 by Xiaolai Li, ISC licensed. The rubric, scoring tables and validator
+are copied with path changes only; the exact file list is in
+[ATTRIBUTION.md](ATTRIBUTION.md) and [UPSTREAM_FILES.txt](UPSTREAM_FILES.txt).
+The upstream author has not reviewed this port.
 
-Ask the host to "score the skills in <path>" or "check manifest consistency".
-`skill/SKILL.md` routes the request through five steps: set the scoring
-profile, discover artifacts, run mechanical checks, apply the rubric, write a
-report and a snapshot.
-
-A host-specific scoring profile is part of the design. The shipped profile
-(`references/workbuddy.md`) records which upstream rules are Claude Code
-conventions and should not be applied to other hosts. `scripts/recalibrate.py`
-recomputes existing findings under that profile.
-
-## Layout
-
-```
-skill/       the installable skill
-tools/       build from upstream, pack the zip
-tests/       regression tests, standard library only
-docs/        design decisions and host compatibility
-UPSTREAM_PIN pinned upstream commit
-```
-
-## Status
-
-Early. The skill works in WorkBuddy and in any host that reads Agent Skills.
-The optional host shell is not built yet. See [CHANGELOG.md](CHANGELOG.md).
+Maintained by [@liyifan2004](https://github.com/liyifan2004).
 
 ## License
 
-Authored code: ISC, see `LICENSE`. Copied upstream content: ISC, see
-`LICENSE-UPSTREAM`. Both license texts travel with every distributed copy.
+ISC — [LICENSE](LICENSE) for authored code, [LICENSE-UPSTREAM](LICENSE-UPSTREAM)
+for copied upstream content. Both texts ship inside every archive.
