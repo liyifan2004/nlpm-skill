@@ -1,0 +1,45 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/checkout@v4
+        with:
+          repository: xiaolai/nlpm
+          path: .cache/upstream
+          fetch-depth: 1
+
+      - name: Pin upstream
+        shell: bash
+        run: |
+          pin="$(cat UPSTREAM_PIN)"
+          git -C .cache/upstream fetch --depth=1 origin "$pin"
+          git -C .cache/upstream checkout --detach "$pin"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Regression tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Generated files match upstream
+        run: python tools/build.py --check --upstream .cache/upstream
+
+      - name: Package
+        run: python tools/pack.py
+
+      - name: Verify package
+        run: python tools/pack.py --check

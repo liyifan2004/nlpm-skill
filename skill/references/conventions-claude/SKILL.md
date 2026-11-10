@@ -1,0 +1,402 @@
+---
+name: conventions-claude
+description: "Claude Code artifact schemas: plugin.json, frontmatter, hooks, settings, tools."
+version: 0.3.1
+user-invocable: false
+---
+
+# Claude Code Conventions
+
+Tool-specific overlay for Claude Code plugin artifacts. Loaded by the scorer and checker when an artifact is classified as **Tier 2-Claude** (per `agents/scorer.md` step 3). The universal floor lives in `nlpm:conventions`; this overlay adds Claude-Code-specific schemas on top.
+
+**Last refreshed:** 2026-08-02 against current docs (Claude Code ≥ v2.1.218); §2.2, §2.4 and §14 corrected 2026-10-01 against Claude Code 2.1.285. **Notation:** a `+` splits `$+ARGUMENTS` and the dollar-brace variables such as `$+{CLAUDE_PLUGIN_ROOT}` throughout this file. The real tokens have no `+`. They are split because Claude Code replaces the contiguous tokens with their values whenever it loads a skill, including when an agent preloads it, so a literal token here would reach the reader as an empty string or a path (§2.4).
+
+**Primary authoritative sources:**
+- <https://code.claude.com/docs/en/claude_code_docs_map.md>
+- <https://code.claude.com/docs/en/skills.md>
+- <https://code.claude.com/docs/en/hooks.md>
+- <https://code.claude.com/docs/en/plugins.md>
+- <https://code.claude.com/docs/en/plugins-reference.md>
+- <https://code.claude.com/docs/en/sub-agents.md>
+- <https://code.claude.com/docs/en/settings.md>
+- <https://code.claude.com/docs/en/memory.md>
+- <https://code.claude.com/docs/en/commands.md> — built-in commands + bundled skills (successor to the retired `slash-commands.md`)
+- <https://code.claude.com/docs/en/tools-reference.md> — **authoritative built-in tool catalog** (see §16)
+- <https://code.claude.com/docs/en/plugin-marketplaces.md>
+- <https://code.claude.com/docs/en/workflows.md>
+
+---
+
+## 1. `.claude-plugin/plugin.json`
+
+The plugin manifest.
+
+**Required fields:**
+- `name` — string, kebab-case, unique identifier
+
+The manifest is **fully optional** — artifacts auto-discover from conventional paths, and only `name` is required when present. Unrecognized top-level fields are ignored with a warning (error only under `claude plugin validate --strict`).
+
+**Optional fields:**
+- `version` — semver string (e.g. `"0.1.0"`). If omitted, commit SHA is used (every commit = new version). For stable releases, set explicit semver.
+- `description` — one-line summary
+- `displayName` — human-readable name shown in installer UI (v2.1.143+)
+- `author` — object: `{ "name": "...", "email": "...", "url": "..." }`
+- `homepage` — URL string
+- `repository` — URL string (the docs' Metadata table types this strictly as `string`; no object form is documented)
+- `license` — SPDX identifier
+- `keywords` — string array for discovery
+- `$schema` — URL to the manifest JSON Schema (editor validation)
+- `defaultEnabled` — boolean; whether the plugin is enabled on install (v2.1.154+)
+- `userConfig` — object; per-key prompts shown to the user at enable time; values exposed as `$+{user_config.<key>}` substitutions
+- `channels` — array; message-injection channel bindings
+- `dependencies` — array of other plugins this one requires (supports semver constraints)
+
+**NOT plugin.json fields (common mistake):**
+- `agent` — this is a **settings.json** default key (a plugin's bundled `settings.json` supports only `agent` and `subagentStatusLine`), not a manifest field.
+- `category` — belongs to a **marketplace.json** plugin entry, not the manifest.
+
+**Artifact path fields (all optional, string or string[]):**
+- `commands` — path(s) to command markdown files
+- `agents` — path(s) to agent markdown files
+- `skills` — path(s) to skill directories
+- `hooks` — path to hooks.json
+- `mcpServers` — path(s) to MCP server config
+- `lspServers` — path(s) to LSP server config (stable in 2026; schema in §12)
+- `outputStyles` — path(s) to output style definitions
+- `workflows` — path(s) to workflow script files/directories (replaces default `workflows/`; ties to the Workflow tool)
+- `experimental.themes` — path(s) to theme definitions (was top-level `themes`; now nested under `experimental`)
+- `experimental.monitors` — path(s) to monitor config (was top-level `monitors`; schema in §13). Top-level still works but `claude plugin validate` warns; a future release will require the `experimental.*` form.
+
+**Plugin structure note:** a `bin/` directory in a plugin root puts its executables on the Bash tool's `PATH` — files there are invokable as bare commands in any Bash call while the plugin is enabled.
+
+**Example manifest → [reference.md](reference.md#pluginjson-example).**
+
+---
+
+## 2. Commands and Skills — merged surfaces (v2.1.x change)
+
+**Critical:** as of Claude Code v2.1.x, commands and skills are the **same architecture**. Both surfaces support the same frontmatter and execution semantics. The recommended canonical path is:
+
+```
+.claude/skills/<name>/SKILL.md     # preferred for new development
+.claude/commands/<name>.md         # still works; equivalent behavior
+```
+
+Existing `.claude/commands/` files continue to function. New code should prefer the skill layout because it allows companion files (`scripts/`, `references/`, `examples/`) in the same directory.
+
+**Authoritative reference:** <https://code.claude.com/docs/en/skills.md> (command/skill frontmatter now lives here; the old `slash-commands.md` page was retired)
+
+### 2.1 Frontmatter (shared between commands and skills)
+
+**Recommended (per official docs, the only *recommended* frontmatter field — all keys are technically optional):**
+- `description` — string; explains what it does and when to invoke. Combined with `when_to_use:` if present. The schema treats it as optional, but a **model-invoked** skill with no (or a weak) description cannot trigger reliably — so nlpm scores a missing/weak description as a **quality** finding (R04), not a hard schema violation.
+
+**Optional (universal):**
+- `name` — string; per official docs, **explicitly optional**. When omitted, filename or enclosing directory is used. Pre-v0.7.15 nlpm incorrectly flagged missing `name:` as a bug; corrected after Jeffallan/claude-skills#184 maintainer feedback.
+- `argument-hint` — string; placeholder shown in UI (e.g., `"[path]"`)
+- `arguments` — space-separated or YAML list of named arguments for `$name` substitution (e.g., `"issue branch"`)
+- `allowed-tools` — string array OR space-separated string; pre-approved tools (no per-use prompt). Format: `"Read Grep Bash(git *)"` or `["Read", "Grep"]`.
+- `disallowed-tools` — string array OR space-separated string; tools removed from the pool while the skill is active.
+- `model` — `haiku` / `sonnet` / `opus` / `fable` / a full model ID / **`inherit`** (keep the active model); overrides session model for one turn.
+- `effort` — `low` / `medium` / `high` / `xhigh` / `max`; overrides session effort.
+- `user-invocable` — boolean; `false` hides from menu (only Claude invokes).
+- `disable-model-invocation` — boolean; `true` means only the user invokes (manual `/skill-name` only).
+
+**Optional (v2.1.x additions — NEW since pre-2026 conventions):**
+- `when_to_use` — string; additional trigger hints (appends to description)
+- `context` — `"fork"` runs in a forked subagent (isolates from main history)
+- `agent` — which subagent type (built-in: `Explore`, `Plan`, `general-purpose`)
+- `hooks` — `{...}` skill-scoped hooks (same shape as settings.json hooks)
+- `paths` — glob patterns; auto-load only for matching files (e.g., `"src/**/*.ts,lib/**/*.ts"`)
+- `shell` — `bash` (default) or `powershell` for the dynamic context blocks in §2.3
+- `background` — boolean; only meaningful with `context: fork`. `false` waits for the forked subagent's result in the invoking turn instead of backgrounding it (default `true`; v2.1.218+).
+
+Boolean frontmatter fields accept `yes`/`no`/`on`/`off`/`1`/`0` (any case) in addition to `true`/`false` (v2.1.218+). The combined `description` + `when_to_use` shown in the skill listing is truncated at 1,536 characters — keep triggers within that budget.
+
+### 2.2 Body conventions
+
+- Write imperative instructions directed at Claude (not the user)
+- Use numbered steps for multi-phase workflows
+- Reference shared partials by plugin-root path, not a bare relative path (§14)
+- Define expected output format explicitly in the body
+
+### 2.3 Dynamic context injection
+
+- Inline form: an exclamation mark placed directly before a single-backtick code span holding a command (e.g. `git diff HEAD`) — runs the command before Claude sees the skill and replaces the span with its output.
+- Fenced form: a code fence whose opening three backticks are followed directly by an exclamation mark — runs its multi-line commands the same way. Both forms are described in words here because Claude Code would execute them when this skill is preloaded.
+- Disabled if `"disableSkillShellExecution": true` in settings.
+
+### 2.4 String substitutions (valid in command/skill bodies)
+
+Claude Code replaces these tokens in command and skill bodies. Do NOT flag them as undefined variables. Each is written with this file's `+` split (see Notation at the top); drop the `+` to get the real token.
+
+| Token | Replaced with |
+|---|---|
+| `$+ARGUMENTS` | every argument passed on invocation |
+| `$+ARGUMENTS[N]` | the argument at index N, 0-based |
+| `$+N` (a digit, e.g. `$+0`) | shorthand for `$+ARGUMENTS[N]` |
+| `$+name` | a named argument declared in `arguments:` (§2.1) |
+| `$+{CLAUDE_SESSION_ID}` | the current session ID |
+| `$+{CLAUDE_EFFORT}` | the current effort level |
+| `$+{CLAUDE_SKILL_DIR}` | the directory that holds the skill's `SKILL.md` |
+| `$+{CLAUDE_PLUGIN_ROOT}` | the plugin's install directory |
+| `$+{CLAUDE_PLUGIN_DATA}` | the plugin's persistent data directory |
+| `$+{CLAUDE_PROJECT_DIR}` | the project directory |
+
+**Preloading substitutes too** (observed on Claude Code 2.1.285, 2026-10-01): when an agent preloads a skill through `skills:`, `$+ARGUMENTS` becomes an empty string and every `$+{CLAUDE_…}` token above becomes its value; `$+N` and `$+name` stay literal because a preload passes no arguments. A backslash protects `$+ARGUMENTS` but not the braced tokens. A reference skill that *describes* these tokens must therefore split them as this file does, or its reader sees the substituted values instead of the token names.
+
+---
+
+## 3. Shared Partials
+
+Reusable shared partials located in `commands/shared/`.
+
+**Rules:**
+- MUST include `user-invocable: false` in frontmatter — prevents appearing as top-level commands
+- MUST have a `description` stating their purpose as a partial
+- Referenced by full relative path from the consuming command file
+- Can contain any mix of instructions, templates, or decision logic
+
+---
+
+## 4. Agent Frontmatter
+
+Agents live in `.claude/agents/<name>.md`.
+
+**The system prompt is the markdown body** of the file (in `--agents` JSON form it is the `prompt` key). There is **no `system-prompt` frontmatter key** — flagging or recommending one is a bug (corrected 2026-06-07 against `sub-agents.md`).
+
+**Documented fields:**
+- `name` — string; identifier for invocation. Cannot contain `:` (reserved for plugin-scoped identifiers, v2.1.218+).
+- `description` — string; critical for reliable triggering — should contain 3+ specific phrases describing when to use this agent
+- `tools` — tools the agent body uses; two valid formats:
+  - JSON array: `tools: ["Read", "Glob"]`
+  - Comma-separated string: `tools: Read, Glob, Grep`
+- `disallowedTools` — tools removed from the inherited pool (this is the correct key — there is **no** `tool-restrictions: {allow, deny}` key; the old nlpm name was wrong)
+- `model` — `haiku` / `sonnet` / `opus` / `fable` / a full ID (e.g. `claude-opus-5`) / `inherit`; **defaults to `inherit`**
+- `skills` — preload skill content into this agent's context at startup. Two valid formats:
+  - JSON array: `skills: ["nlpm:conventions"]`
+  - YAML list: `skills:\n  - nlpm:conventions`
+
+**Convention / additional fields:**
+- `effort` — `low` / `medium` / `high` / `xhigh` / `max`
+- `color` — one of `red`, `blue`, `green`, `yellow`, `purple`, `orange`, `pink`, `cyan`; visual label. **`magenta` is NOT valid** (old nlpm list had it; the current valid set adds `purple`, `orange`, `pink`).
+- `permissionMode` — `default` (alias `manual`, v2.1.200+) / `acceptEdits` / `auto` / `dontAsk` / `bypassPermissions` / `plan`
+- `isolation` — only valid value `"worktree"` (runs the agent in a git worktree)
+- `memory` — `user` / `project` / `local`
+- `maxTurns` — integer turn cap
+- `background` — boolean; run asynchronously
+- `initialPrompt` — string; seeds the agent's first turn
+- `mcpServers`, `hooks` — agent-scoped overrides
+
+**Plugin-shipped agents are restricted:** `hooks`, `mcpServers`, and `permissionMode` are **ignored** for agents distributed inside a plugin (security). Score plugin agents accordingly.
+
+**Best practice: include `<example>` blocks in description.** The description is placed in the Agent tool's text on every turn and is the only thing Claude sees when choosing an agent, so examples belong there (not in the body). One well-chosen `<example>` plus a "Not for …" sentence carries the routing signal; extra examples are allowed but cost always-on context. nlpm R09 deducts 5 points when the description exceeds 1,200 characters.
+
+---
+
+## 5. Skills — Claude Code path conventions
+
+Universal SKILL.md spec lives in `nlpm:conventions` (open spec at agentskills.io). Claude Code uses these path conventions:
+
+- Single plugin skill: `skills/<name>/SKILL.md`
+- Multi-skill plugin: `skills/<plugin>/<name>/SKILL.md`
+- Project-scoped: `.claude/skills/<name>/SKILL.md`
+- User-scoped: `~/.claude/skills/<name>/SKILL.md`
+
+**Skill discovery paths now support parent-directory and monorepo nested scanning** (v2.1.x). Skills from `./parent/.claude/skills/` and `./packages/frontend/.claude/skills/` auto-load. Skills from `--add-dir` paths also load from `.claude/skills/` within added directories.
+
+**Supporting files:** Same directory as `SKILL.md` — `scripts/`, `references/`, `examples/`, etc. Reference them from `SKILL.md` so Claude knows when to load them.
+
+**Skill preloading in agents (v2.1.x):** Declare `skills: [name1, name2]` in agent frontmatter to inject full skill content at startup (vs. Claude auto-loading on demand).
+
+---
+
+## 6. Rules
+
+Rules live in `.claude/rules/<name>.md`.
+
+**Frontmatter:**
+- `description` — string (required)
+- `paths` — string array (optional); glob patterns scoping which files this rule applies to
+
+**Body format:**
+- Lead with a **bold imperative**: `**Always do X.**` or `**Use Y instead of Z.**`
+- Follow immediately with rationale
+- Be specific and testable
+- State what to DO, not only what to avoid (Pink Elephant effect)
+
+**Budget:** Under 500 lines total per rules file.
+
+**Naming convention for ordered sets:** `NN-kebab-name.md` (e.g. `01-formatting.md`).
+
+---
+
+## 7. Hook Events (Claude Code)
+
+Hook events are **case-sensitive**. Using wrong case silently ignores the hook.
+
+**Confirmed against 2026-06-07 docs refresh (`hooks.md`):**
+
+| Event | Trigger | Context fields |
+|---|---|---|
+| `SessionStart` | Session begin | `source` (startup/resume/clear/compact), `model` |
+| `SessionEnd` | Session end | (trigger only) |
+| `UserPromptSubmit` | User submits a prompt | `prompt` text |
+| `PreToolUse` | Before any tool call | `tool_name`, `tool_input` |
+| `PostToolUse` | After tool call | `tool_name`, `tool_input`, `tool_output` |
+| `PermissionRequest` | When Claude requests permission | `tool_name`, `tool_input`, `permission_mode` |
+| `Stop` | Once per turn | `reason` (can set `decision: block` to prevent stopping) |
+| `StopFailure` | Once per turn — Claude failed to complete | `reason` |
+| `FileChanged` | Per file change | `filename`, `watcher_path` |
+
+**Beyond the table above, many more events are valid** (`SubagentStop`, `PreCompact`, `Notification`, `PostToolUseFailure`, `Setup`, `SubagentStart`, `PermissionDenied`, `PostCompact`, `TaskCompleted`, `MessageDisplay`, …). **Full allow-list → [reference.md](reference.md#hook-events-extended-allow-list).** Any documented event name is valid even if it post-dates this doc; do NOT flag as unknown — verify against `hooks.md` rather than penalizing.
+
+**Hook types** (canonical, all lowercase in JSON):
+- `command` — shell script (stdin/stdout)
+- `http` — HTTP POST endpoint
+- `mcp_tool` — MCP server tool invocation
+- `prompt` — LLM evaluation
+- `agent` — subagent verification
+
+A `command` hook may add `"shell": "powershell"` to run that hook in PowerShell instead of the default shell.
+
+**Matcher patterns:** string (exact), pipe-separated list (`Bash|Edit`), or regex (non-alphanumeric chars).
+
+**MCP tool naming:** `mcp__<server>__<tool>` (e.g., `mcp__memory__write.*`). Hook matchers use this format.
+
+**Exit codes (command hooks):**
+- `0` — success (stdout to debug log; for `UserPromptSubmit`, `UserPromptExpansion`, and `SessionStart`, stdout is injected as context)
+- `2` — blocking error (action denied, stderr fed to Claude) — **only on blockable events**. Non-blockable events ignore exit 2: `PostToolUse`, `PostToolUseFailure`, `Notification`, `SessionStart`, `SessionEnd`, `InstructionsLoaded`, `StopFailure`, `MessageDisplay`, `SubagentStart`, `Setup`, `CwdChanged`, `FileChanged`, `PostCompact`, `WorktreeRemove`, `PermissionDenied` (on `PermissionDenied`, use JSON `retry: true` rather than exit 2).
+- `1, 3+` — non-blocking error (logged in debug only)
+
+---
+
+## 8. `hooks.json` Format
+
+Located at `.claude/hooks.json` or `<plugin>/hooks/hooks.json`.
+
+**Full example, structure rules and optional hook-object fields → [reference.md](reference.md#hooksjson-format).**
+
+---
+
+## 9. `.mcp.json`
+
+Claude Code reads MCP server registrations from a **standalone JSON file** at the repo root (NOT embedded in `settings.json` like Gemini, NOT inside `config.toml` like Codex).
+
+**Example → [reference.md](reference.md#mcpjson-example).**
+
+Plugin scope: `<plugin>/.mcp.json` at the plugin root, or inline in `plugin.json` under `mcpServers`. (Only the plugin-root form is documented; the older `.claude-plugin/.mcp.json` variant is not.)
+
+---
+
+## 10. CLAUDE.md (memory file)
+
+Four memory scopes load in order (managed policy → user → project → local):
+
+| Scope | Path | Notes |
+|---|---|---|
+| Managed policy | OS-specific managed path (e.g. `/Library/Application Support/ClaudeCode/CLAUDE.md`) | org-wide, set by administrators |
+| User | `~/.claude/CLAUDE.md` | personal, applies to all projects |
+| Project | `./CLAUDE.md` or `./.claude/CLAUDE.md` | shared, committed |
+| Local | `./CLAUDE.local.md` | gitignored personal overrides for this repo |
+
+Auto-memory is a **separate** system at `~/.claude/projects/<slug>/memory/` (see §15) — there is no `.claude/memory/*.md` convention.
+
+**Recommended pattern for multi-tool projects** (per `analysis/multi-tool-design-2026-05.md` decision #5): make `AGENTS.md` the canonical universal memory file and ship no `CLAUDE.md`. Claude Code 2.1.277+ reads `AGENTS.md` natively when no `CLAUDE.md`, `.claude/CLAUDE.md`, or `CLAUDE.local.md` sits in the working directory or above it (`~/.claude/CLAUDE.md` does not count); Codex reads it natively; Gemini/Antigravity can be configured to read it via the `context.fileName` array. This is how nlpm itself works. A plugin root must not carry a `CLAUDE.md` at all — `claude plugin validate` warns that it is not loaded as plugin context.
+
+For Claude Code older than 2.1.277, the compatibility shim is a one-line `CLAUDE.md` that imports `AGENTS.md`:
+
+```markdown
+@AGENTS.md
+```
+
+**Body conventions** when content lives in CLAUDE.md directly:
+- Build/run instructions
+- Test commands
+- Architecture overview (what lives where)
+- Prerequisites section
+- Valid `@`-imports must reference existing files
+
+---
+
+## 11. `.claude/settings.json` and `.claude/settings.local.json`
+
+`.local.json` is gitignored (per-user); the non-local file is shared — never set `bypassPermissions: true` in the shared file. **Field table (incl. `autoMemoryEnabled`/`autoMemoryDirectory`, see §15) → [reference.md](reference.md#settings-fields).**
+
+---
+
+## 12. LSP Servers (`.lsp.json`)
+
+**Stable in 2026** (was experimental in 2025). `.lsp.json` file, or a `lspServers` object in `plugin.json`. Required fields `command` + `extensionToLanguage`. **Full per-server schema → [reference.md](reference.md#lsp-servers).**
+
+---
+
+## 13. Monitors (`monitors/monitors.json`)
+
+**Experimental** — lives under `experimental.monitors` (§1); its manifest schema may change between releases while it stabilizes. Plugin background watchers; requires v2.1.105+. Per-entry required `name` + `command` + `description`. **Full schema → [reference.md](reference.md#monitors).**
+
+---
+
+## 14. Reference Syntax
+
+**Commands referencing shared partials:** point at the file by absolute path — "Follow the steps in `$+{CLAUDE_PLUGIN_ROOT}/commands/shared/discover.md`". Claude Code substitutes `$+{CLAUDE_PLUGIN_ROOT}` in command, skill and agent bodies; a bare `commands/shared/…` path does not resolve, because a command is not told where its plugin lives.
+Give each partial `user-invocable: false` and `disable-model-invocation: true`, so it stays out of the skill listing while commands still read it.
+
+**Agents referencing skills in frontmatter:**
+```yaml
+skills: ["nlpm:conventions", "nlpm:conventions-claude"]
+```
+
+**Hooks referencing scripts:**
+```json
+"command": "$+{CLAUDE_PLUGIN_ROOT}/scripts/check.sh"
+```
+
+**Always use `$+{CLAUDE_PLUGIN_ROOT}` for intra-plugin file references.** Hardcoded absolute paths break portability.
+
+**Cross-plugin skill references** use the same `plugin:skill` format. The plugin must be installed for the reference to resolve.
+
+---
+
+## 15. Memory File Conventions (`~/.claude/projects/<slug>/memory/`)
+
+Auto memory (v2.1.59+) lives at `~/.claude/projects/<project-slug>/memory/`, toggled by `autoMemoryEnabled` / relocated by `autoMemoryDirectory` (§11); individual files need `name`/`description`/`type` frontmatter and an entry in the `MEMORY.md` index. **Full schema, `type` values and rules → [reference.md](reference.md#memory-file-conventions).**
+
+---
+
+## 16. Claude Code Tool Catalog
+
+Tool names valid in `tools:`, `allowed-tools:`, `disallowed-tools:`. **Never flag a well-formed tool name as "unknown" or "undocumented"** — the catalog grows and any string matching `Pascal`-name or `mcp__<server>__<tool>` patterns is valid. Key renames: `Task` → **`Agent`** (alias kept); `MultiEdit`, `BashOutput`, `KillBash` **removed**; `TodoWrite` default-off (→ `Task*` family); `SlashCommand` folded into `Skill`.
+
+**Full catalog — built-in tools, renames/removals, MCP naming → [reference.md](reference.md#tool-catalog).** Authoritative source: `code.claude.com/docs/en/tools-reference.md`.
+
+---
+
+## 17. Plugin distribution
+
+**Marketplace manifest:** `.claude-plugin/marketplace.json` at the marketplace repo root. **Required top-level:** `name`, `owner` (maintainer-info object), `plugins`. Optional: `$schema`, `description`, `version`, `metadata.description`, `metadata.version`, `metadata.pluginRoot`, `forceRemoveDeletedPlugins`, `allowCrossMarketplaceDependenciesOn`, `renames`. Per-plugin entries may add `category`, `tags`, `strict`, `relevance`, `defaultEnabled`. **Full schema, `source` types, and `renames`/`strict` semantics → [reference.md](reference.md#plugin-distribution-marketplacejson).**
+
+**Plugin from URL (v2.1.x):** `--plugin-url` and `--plugin-dir` flags accept `.zip` archives.
+
+**Namespacing:** plugin skills, commands, **and** agents are all namespaced under the plugin — `/my-plugin:hello` for skills/commands, `my-plugin:code-reviewer` in the @-mention typeahead for agents. Prevents conflicts.
+
+---
+
+## 18. Scope and uncertainty
+
+This skill covers Claude Code conventions. It does NOT cover:
+- Universal SKILL.md spec → `nlpm:conventions`
+- Penalty tables → `nlpm:scoring`
+
+**Resolved in the 2026-08-02 refresh (no longer uncertain):**
+- Hook event lists verified 30/30 against current `hooks.md` (§7); exit-code non-blocking list completed.
+- `description` is Recommended, not Required (§2.1); `fable` model alias + `claude-opus-5` example added (§2.1, §4).
+- Memory scopes corrected to managed/user/project/local; the bogus `.claude/memory/*.md` claim removed (§10, was self-contradictory with §15).
+- Monitors reclassified experimental (§13); LSP confirmed genuinely stable (§12).
+- `marketplace.json` required `owner` + `strict`/`renames` folded into §17; namespacing corrected (agents/commands are namespaced too). `slash-commands.md` citation retired for `skills.md`/`commands.md`.
+- Version gates v2.1.142 (`TodoWrite` default-off) and v2.1.154 (`defaultEnabled`) confirmed literal in current docs.
+
+**Still approximate (verify before citing a specific tag):**
+- Exact version pins beyond v2.1.218 (highest gate observed); no single current top-level Claude Code version is stated in the docs.
+- Whether a `language` settings.json key still exists — not found in repeated fetches, but the source page returned inconsistent partial coverage, so it is NOT dropped on that evidence alone.
+- Whether `.claude/rules/` frontmatter recognizes a `description` field (§6) — not shown in any current docs example; unverified this pass.
