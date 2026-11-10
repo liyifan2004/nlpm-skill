@@ -15,9 +15,7 @@ Everything else in skill/ is authored here and is left untouched.
 from __future__ import annotations
 
 import argparse
-import filecmp
 import re
-import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -26,6 +24,9 @@ ROOT = Path(__file__).resolve().parents[1]
 SUFFIXES = {".md", ".yaml", ".yml", ".json"}
 DESC_RE = re.compile(r"^description:\s*(.+)$", re.M)
 UPSTREAM_URL = "https://github.com/xiaolai/nlpm"
+LF = chr(10)
+CRLF = bytes([13, 10])
+LFB = bytes([10])
 
 
 def pin() -> str:
@@ -48,6 +49,24 @@ def brief(text: str) -> str:
     return m.group(1).strip().strip('"').strip("'") if m else ""
 
 
+def write_normalized(src: Path, dst: Path) -> None:
+    """Copy as UTF-8 text with LF endings.
+
+    A Windows checkout can hand us CRLF copies of the same upstream blob.
+    Generating LF on every OS keeps the checked-in files and CI comparisons
+    stable. The upstream content itself is unchanged.
+    """
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    dst.write_text(src.read_text(encoding="utf-8"), encoding="utf-8", newline=LF)
+
+
+def same(a: Path, b: Path) -> bool:
+    """Compare bytes after folding CRLF, so autocrlf settings do not matter."""
+    if not a.is_file() or not b.is_file():
+        return False
+    return a.read_bytes().replace(CRLF, LFB) == b.read_bytes().replace(CRLF, LFB)
+
+
 def build_into(up: Path, dest: Path) -> list[str]:
     src = up / "skills" / "nlpm"
     checker = up / "bin" / "nlpm-check"
@@ -61,16 +80,12 @@ def build_into(up: Path, dest: Path) -> list[str]:
         if not f.is_file() or f.suffix not in SUFFIXES:
             continue
         rel = (Path("skill/references") / f.relative_to(src)).as_posix()
-        p = dest / rel
-        p.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(f, p)
+        write_normalized(f, dest / rel)
         written.append(rel)
         pairs.append((rel, f.relative_to(up).as_posix()))
 
     rel = "skill/scripts/nlpm-check.py"
-    p = dest / rel
-    p.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(checker, p)
+    write_normalized(checker, dest / rel)
     written.append(rel)
     pairs.append((rel, "bin/nlpm-check"))
 
@@ -131,11 +146,7 @@ def main() -> int:
         with tempfile.TemporaryDirectory() as td:
             dest = Path(td)
             written = build_into(up, dest)
-            drift = [
-                rel for rel in written
-                if not (ROOT / rel).is_file()
-                or not filecmp.cmp(ROOT / rel, dest / rel, shallow=False)
-            ]
+            drift = [rel for rel in written if not same(ROOT / rel, dest / rel)]
         if drift:
             print("generated files differ; run python tools/build.py:")
             for rel in drift:
